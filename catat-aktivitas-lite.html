@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi To-Do List & Management Progres</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS CDN (Export/Import Excel) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .task-completed .task-title { text-decoration: line-through; color: #9CA3AF; }
+        .tanggal-disabled { color: #9CA3AF !important; background-color: #F3F4F6 !important; border-color: #E5E7EB !important; opacity: 0.75; cursor: not-allowed !important; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 pb-12">
+
+    <!-- NOTIFICATION BAR BACKUP -->
+    <div id="backupNotificationBar" class="bg-amber-500 text-white text-xs px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2 shadow-sm transition-colors duration-300">
+        <div class="flex items-center gap-2">
+            <i id="backupStatusIcon" class="fa-solid fa-triangle-exclamation text-amber-100 text-sm"></i>
+            <span id="backupStatusText">Memeriksa status pencadangan data...</span>
+        </div>
+        <button onclick="exportToExcel()" class="bg-white text-slate-800 px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-slate-100 transition shadow-sm whitespace-nowrap">
+            <i class="fa-solid fa-download text-emerald-600 mr-1"></i> Cadangkan Sekarang
+        </button>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-lg mb-8">
+        <div class="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-indigo-500 rounded-xl">
+                    <i class="fa-solid fa-list-check text-2xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">To-Do List Manager</h1>
+                    <p class="text-indigo-200 text-sm">Kelola tugas harian dan pantau progres pekerjaan Anda</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 flex-wrap">
+                <!-- Statistik Akumulatif -->
+                <div class="flex gap-3 text-sm">
+                    <div class="bg-indigo-700/80 px-4 py-2 rounded-xl text-center backdrop-blur-sm">
+                        <span class="block text-xs text-indigo-200">Total Tugas</span>
+                        <span id="stat-total" class="font-bold text-lg">0</span>
+                    </div>
+                    <div class="bg-amber-600/80 px-4 py-2 rounded-xl text-center backdrop-blur-sm">
+                        <span class="block text-xs text-amber-200">Belum Selesai</span>
+                        <span id="stat-pending" class="font-bold text-lg">0</span>
+                    </div>
+                    <div class="bg-emerald-600/80 px-4 py-2 rounded-xl text-center backdrop-blur-sm">
+                        <span class="block text-xs text-emerald-200">Total Selesai</span>
+                        <span id="stat-completed" class="font-bold text-lg">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Form Input Tugas Baru -->
+        <section class="lg:col-span-1">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-indigo-600"></i> Tambah Tugas Baru
+                </h2>
+                
+                <form id="todoForm" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                            Tanggal <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" id="taskDate" required 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                            Aktivitas <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="taskTitle" placeholder="Contoh: Rapat Tim Proyek" required 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                            Detail Aktivitas <span class="text-xs font-normal text-slate-400">(Opsional)</span>
+                        </label>
+                        <textarea id="taskDetail" rows="3" placeholder="Tambahkan rincian atau catatan..." 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm outline-none resize-none"></textarea>
+                    </div>
+
+                    <button type="submit" 
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition duration-200 flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-100">
+                        <i class="fa-solid fa-plus"></i> Simpan Tugas
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Area Konten Utama -->
+        <section class="lg:col-span-2 space-y-6">
+            
+            <!-- PANEL FILTER KOMBINASI -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                
+                <!-- Menu Filter 1: Periode Waktu -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-calendar-days text-indigo-600"></i> Periode Waktu:
+                    </span>
+                    <div class="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-medium">
+                        <button onclick="setPeriodFilter('all')" id="period-all" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Semua</button>
+                        <button onclick="setPeriodFilter('day')" id="period-day" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Hari Ini</button>
+                        <button onclick="setPeriodFilter('week')" id="period-week" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Minggu Ini</button>
+                        <button onclick="setPeriodFilter('month')" id="period-month" class="period-btn px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-800 transition">Bulan Ini</button>
+                        <button onclick="setPeriodFilter('year')" id="period-year" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Tahun Ini</button>
+                    </div>
+                </div>
+
+                <!-- Custom Selector Tanggal/Periode -->
+                <div id="custom-picker-container" class="flex items-center justify-between bg-indigo-50/60 px-4 py-2.5 rounded-xl border border-indigo-100 text-xs text-indigo-950">
+                    <span id="picker-label" class="font-semibold text-indigo-900">Pilih Periode Custom:</span>
+                    <div id="picker-input-wrapper" class="flex items-center gap-2"></div>
+                </div>
+
+                <!-- Menu Filter 2: Status Progres -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-spinner text-indigo-600"></i> Status Progres:
+                    </span>
+                    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-medium flex-wrap">
+                        <button onclick="setStatusFilter('all')" id="status-all" class="status-btn px-3 py-1 rounded-lg bg-white shadow-sm text-slate-800 transition">Semua (Gabungan)</button>
+                        <button onclick="setStatusFilter('started')" id="status-started" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Mulai Periode Ini</button>
+                        <button onclick="setStatusFilter('completed_period')" id="status-completed_period" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Diselesaikan Periode Ini</button>
+                        <button onclick="setStatusFilter('pending')" id="status-pending" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Belum Selesai</button>
+                        <button onclick="setStatusFilter('completed')" id="status-completed" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Selesai</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- BANNER RINGKASAN PROGRES PERIODE -->
+            <div id="periodSummaryBanner" class="bg-indigo-900 text-white p-4 rounded-2xl shadow-sm text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            </div>
+
+            <!-- TABEL 1: TUGAS MENUNGGAK DARI PERIODE LALU -->
+            <div id="overdueSection" class="bg-amber-50/50 rounded-2xl border border-amber-200/80 overflow-hidden hidden">
+                <div class="p-4 bg-amber-100/60 border-b border-amber-200/80 flex justify-between items-center cursor-pointer select-none" onclick="toggleOverdue()">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                        <h3 class="font-bold text-amber-900 text-sm">Tugas Belum Selesai dari Periode Lalu</h3>
+                        <span id="overdueBadge" class="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                    </div>
+                    <button class="text-amber-800 hover:text-amber-950 transition text-sm">
+                        <i id="overdueChevron" class="fa-solid fa-chevron-up"></i>
+                    </button>
+                </div>
+                
+                <div id="overdueTableWrapper" class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-amber-100/30 border-b border-amber-200/60 text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
+                                <th class="py-2.5 px-4 w-32">Tgl Tugas</th>
+                                <th class="py-2.5 px-4">Aktivitas & Detail</th>
+                                <th class="py-2.5 px-4 w-36">Tgl Selesai</th>
+                                <th class="py-2.5 px-4 w-16 text-center">Status</th>
+                                <th class="py-2.5 px-4 w-20 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overdueList" class="divide-y divide-amber-200/40 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TABEL 2: DAFTAR AKTIVITAS UTAMA -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-list text-indigo-600"></i> 
+                        Daftar Aktivitas <span id="currentPeriodTitle" class="text-indigo-600 font-semibold">(Semua Periode)</span>
+                    </h2>
+
+                    <!-- TOMBOL KONTROL DATA (UPLOAD & EXPORT) -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <input type="file" id="importFileInput" accept=".xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
+                        
+                        <button onclick="triggerUploadWithBackup()" class="bg-slate-700 hover:bg-slate-800 text-white font-medium text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-file-import text-sm"></i> Upload Data
+                        </button>
+                        
+                        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-file-excel text-sm"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="p-12 text-center hidden">
+                    <div class="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fa-regular fa-clipboard text-2xl"></i>
+                    </div>
+                    <p class="text-slate-600 font-medium text-sm">Belum ada tugas pada kriteria ini</p>
+                    <p class="text-slate-400 text-xs mt-1">Ganti filter periode atau status progres untuk melihat tugas lainnya.</p>
+                </div>
+
+                <!-- Tabel Utama -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="todoTable">
+                        <thead>
+                            <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                <th class="py-3 px-4 w-32">Tgl Tugas</th>
+                                <th class="py-3 px-4">Aktivitas & Keterangan Periode</th>
+                                <th class="py-3 px-4 w-36">Tgl Selesai</th>
+                                <th class="py-3 px-4 w-16 text-center">Status</th>
+                                <th class="py-3 px-4 w-20 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="todoList" class="divide-y divide-slate-100 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- POPUP MODAL PREVIEW IMPORT & RESOLUSI KONFLIK DATA (FITUR BARU) -->
+    <div id="importPreviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
+            
+            <!-- Header Modal -->
+            <div class="bg-slate-800 text-white px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-indigo-600 rounded-lg">
+                        <i class="fa-solid fa-code-compare text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base">Pratinjau & Resolusi Konflik Data Import</h3>
+                        <p class="text-slate-300 text-xs">Bandingkan data Excel dengan data Web sebelum dimasukkan.</p>
+                    </div>
+                </div>
+                <button onclick="closeImportPreviewModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Ringkasan Kategori Data -->
+            <div class="bg-slate-50 border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="font-semibold text-slate-600">Status Pencocokan:</span>
+                    <span id="badgeCountNew" class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">0 Data Baru</span>
+                    <span id="badgeCountConflict" class="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">0 Data Bentrok</span>
+                    <span id="badgeCountDeleted" class="bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full font-bold">0 Data Terhapus</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="selectAllImportCheckbox" onchange="toggleSelectAllImport(this.checked)" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    <label for="selectAllImportCheckbox" class="font-bold text-slate-700 cursor-pointer">Pilih / Centang Semua</label>
+                </div>
+            </div>
+
+            <!-- Tabel Komparasi Preview -->
+            <div class="overflow-y-auto p-6 space-y-3 grow">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase tracking-wider">
+                            <th class="py-2.5 px-3 w-10 text-center">Pilih</th>
+                            <th class="py-2.5 px-3 w-32">Kategori</th>
+                            <th class="py-2.5 px-3 w-36">ID Registrasi</th>
+                            <th class="py-2.5 px-3">Data di Web saat ini</th>
+                            <th class="py-2.5 px-3">Data di File Excel</th>
+                            <th class="py-2.5 px-3 w-40">Aksi yang Diambil</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importPreviewTableBody" class="divide-y divide-slate-100">
+                        <!-- Baris komparasi akan di-generate via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-between items-center shrink-0">
+                <p class="text-xs text-slate-500">
+                    <i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i> Data yang centangnya diabaikan tidak akan mengubah data web Anda.
+                </p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeImportPreviewModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition">
+                        Batal
+                    </button>
+                    <button type="button" onclick="executeImport()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-b
