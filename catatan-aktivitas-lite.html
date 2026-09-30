@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi To-Do List & Management Progres</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS CDN (Export/Import Excel) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .task-completed .task-title { text-decoration: line-through; color: #9CA3AF; }
+        .tanggal-disabled { color: #9CA3AF !important; background-color: #F3F4F6 !important; border-color: #E5E7EB !important; opacity: 0.75; cursor: not-allowed !important; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 pb-12">
+
+    <!-- NOTIFICATION BAR BACKUP -->
+    <div id="backupNotificationBar" class="bg-amber-500 text-white text-xs px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2 shadow-sm transition-colors duration-300">
+        <div class="flex items-center gap-2">
+            <i id="backupStatusIcon" class="fa-solid fa-triangle-exclamation text-amber-100 text-sm"></i>
+            <span id="backupStatusText">Memeriksa status pencadangan data...</span>
+        </div>
+        <button onclick="exportToExcel()" class="bg-white text-slate-800 px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-slate-100 transition shadow-sm whitespace-nowrap">
+            <i class="fa-solid fa-download text-emerald-600 mr-1"></i> Cadangkan Sekarang
+        </button>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-lg mb-8">
+        <div class="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-indigo-500 rounded-xl">
+                    <i class="fa-solid fa-list-check text-2xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">To-Do List Manager</h1>
+                    <p class="text-indigo-200 text-sm">Kelola tugas harian dan pantau progres pekerjaan Anda</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 flex-wrap">
+                <!-- Statistik Akumulatif -->
+                <div class="flex gap-3 text-sm">
+                    <div class="bg-indigo-700/80 px-4 py-2 rounded-xl text-center backdrop-blur-sm">
+                        <span class="block text-xs text-indigo-200">Total Tugas</span>
+                        <span id="stat-total" class="font-bold text-lg">0</span>
+                    </div>
+                    <div class="bg-amber-600/80 px-4 py-2 rounded-xl text-center backdrop-blur-sm">
+                        <span class="block text-xs text-amber-200">Belum Selesai</span>
+                        <span id="stat-pending" class="font-bold text-lg">0</span>
+                    </div>
+                    <div class="bg-emerald-600/80 px-4 py-2 rounded-xl text-center backdrop-blur-sm">
+                        <span class="block text-xs text-emerald-200">Total Selesai</span>
+                        <span id="stat-completed" class="font-bold text-lg">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Form Input Tugas Baru -->
+        <section class="lg:col-span-1">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-indigo-600"></i> Tambah Tugas Baru
+                </h2>
+                
+                <form id="todoForm" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                            Tanggal <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" id="taskDate" required 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                            Aktivitas <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="taskTitle" placeholder="Contoh: Rapat Tim Proyek" required 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                            Detail Aktivitas <span class="text-xs font-normal text-slate-400">(Opsional)</span>
+                        </label>
+                        <textarea id="taskDetail" rows="3" placeholder="Tambahkan rincian atau catatan..." 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm outline-none resize-none"></textarea>
+                    </div>
+
+                    <button type="submit" 
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition duration-200 flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-100">
+                        <i class="fa-solid fa-plus"></i> Simpan Tugas
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Area Konten Utama -->
+        <section class="lg:col-span-2 space-y-6">
+            
+            <!-- PANEL FILTER KOMBINASI -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                
+                <!-- Menu Filter 1: Periode Waktu -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-calendar-days text-indigo-600"></i> Periode Waktu:
+                    </span>
+                    <div class="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-medium">
+                        <button onclick="setPeriodFilter('all')" id="period-all" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Semua</button>
+                        <button onclick="setPeriodFilter('day')" id="period-day" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Hari Ini</button>
+                        <button onclick="setPeriodFilter('week')" id="period-week" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Minggu Ini</button>
+                        <button onclick="setPeriodFilter('month')" id="period-month" class="period-btn px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-800 transition">Bulan Ini</button>
+                        <button onclick="setPeriodFilter('year')" id="period-year" class="period-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-800 transition">Tahun Ini</button>
+                    </div>
+                </div>
+
+                <!-- Custom Selector Tanggal/Periode -->
+                <div id="custom-picker-container" class="flex items-center justify-between bg-indigo-50/60 px-4 py-2.5 rounded-xl border border-indigo-100 text-xs text-indigo-950">
+                    <span id="picker-label" class="font-semibold text-indigo-900">Pilih Periode Custom:</span>
+                    <div id="picker-input-wrapper" class="flex items-center gap-2"></div>
+                </div>
+
+                <!-- Menu Filter 2: Status Progres -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-spinner text-indigo-600"></i> Status Progres:
+                    </span>
+                    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-medium flex-wrap">
+                        <button onclick="setStatusFilter('all')" id="status-all" class="status-btn px-3 py-1 rounded-lg bg-white shadow-sm text-slate-800 transition">Semua (Gabungan)</button>
+                        <button onclick="setStatusFilter('started')" id="status-started" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Mulai Periode Ini</button>
+                        <button onclick="setStatusFilter('completed_period')" id="status-completed_period" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Diselesaikan Periode Ini</button>
+                        <button onclick="setStatusFilter('pending')" id="status-pending" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Belum Selesai</button>
+                        <button onclick="setStatusFilter('completed')" id="status-completed" class="status-btn px-3 py-1 rounded-lg text-slate-600 hover:text-slate-800 transition">Selesai</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- BANNER RINGKASAN PROGRES PERIODE -->
+            <div id="periodSummaryBanner" class="bg-indigo-900 text-white p-4 rounded-2xl shadow-sm text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            </div>
+
+            <!-- TABEL 1: TUGAS MENUNGGAK DARI PERIODE LALU -->
+            <div id="overdueSection" class="bg-amber-50/50 rounded-2xl border border-amber-200/80 overflow-hidden hidden">
+                <div class="p-4 bg-amber-100/60 border-b border-amber-200/80 flex justify-between items-center cursor-pointer select-none" onclick="toggleOverdue()">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                        <h3 class="font-bold text-amber-900 text-sm">Tugas Belum Selesai dari Periode Lalu</h3>
+                        <span id="overdueBadge" class="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                    </div>
+                    <button class="text-amber-800 hover:text-amber-950 transition text-sm">
+                        <i id="overdueChevron" class="fa-solid fa-chevron-up"></i>
+                    </button>
+                </div>
+                
+                <div id="overdueTableWrapper" class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-amber-100/30 border-b border-amber-200/60 text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
+                                <th class="py-2.5 px-4 w-32">Tgl Tugas</th>
+                                <th class="py-2.5 px-4">Aktivitas & Detail</th>
+                                <th class="py-2.5 px-4 w-36">Tgl Selesai</th>
+                                <th class="py-2.5 px-4 w-16 text-center">Status</th>
+                                <th class="py-2.5 px-4 w-20 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overdueList" class="divide-y divide-amber-200/40 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TABEL 2: DAFTAR AKTIVITAS UTAMA -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-list text-indigo-600"></i> 
+                        Daftar Aktivitas <span id="currentPeriodTitle" class="text-indigo-600 font-semibold">(Semua Periode)</span>
+                    </h2>
+
+                    <!-- TOMBOL KONTROL DATA (UPLOAD & EXPORT) -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <input type="file" id="importFileInput" accept=".xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
+                        
+                        <button onclick="triggerUploadWithBackup()" class="bg-slate-700 hover:bg-slate-800 text-white font-medium text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-file-import text-sm"></i> Upload Data
+                        </button>
+                        
+                        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-file-excel text-sm"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="p-12 text-center hidden">
+                    <div class="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fa-regular fa-clipboard text-2xl"></i>
+                    </div>
+                    <p class="text-slate-600 font-medium text-sm">Belum ada tugas pada kriteria ini</p>
+                    <p class="text-slate-400 text-xs mt-1">Ganti filter periode atau status progres untuk melihat tugas lainnya.</p>
+                </div>
+
+                <!-- Tabel Utama -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="todoTable">
+                        <thead>
+                            <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                <th class="py-3 px-4 w-32">Tgl Tugas</th>
+                                <th class="py-3 px-4">Aktivitas & Keterangan Periode</th>
+                                <th class="py-3 px-4 w-36">Tgl Selesai</th>
+                                <th class="py-3 px-4 w-16 text-center">Status</th>
+                                <th class="py-3 px-4 w-20 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="todoList" class="divide-y divide-slate-100 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- POPUP MODAL PREVIEW IMPORT & RESOLUSI KONFLIK DATA (FITUR BARU) -->
+    <div id="importPreviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
+            
+            <!-- Header Modal -->
+            <div class="bg-slate-800 text-white px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-indigo-600 rounded-lg">
+                        <i class="fa-solid fa-code-compare text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base">Pratinjau & Resolusi Konflik Data Import</h3>
+                        <p class="text-slate-300 text-xs">Bandingkan data Excel dengan data Web sebelum dimasukkan.</p>
+                    </div>
+                </div>
+                <button onclick="closeImportPreviewModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Ringkasan Kategori Data -->
+            <div class="bg-slate-50 border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="font-semibold text-slate-600">Status Pencocokan:</span>
+                    <span id="badgeCountNew" class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">0 Data Baru</span>
+                    <span id="badgeCountConflict" class="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">0 Data Bentrok</span>
+                    <span id="badgeCountDeleted" class="bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full font-bold">0 Data Terhapus</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="selectAllImportCheckbox" onchange="toggleSelectAllImport(this.checked)" checked class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    <label for="selectAllImportCheckbox" class="font-bold text-slate-700 cursor-pointer">Pilih / Centang Semua</label>
+                </div>
+            </div>
+
+            <!-- Tabel Komparasi Preview -->
+            <div class="overflow-y-auto p-6 space-y-3 grow">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase tracking-wider">
+                            <th class="py-2.5 px-3 w-10 text-center">Pilih</th>
+                            <th class="py-2.5 px-3 w-32">Kategori</th>
+                            <th class="py-2.5 px-3 w-36">ID Registrasi</th>
+                            <th class="py-2.5 px-3">Data di Web saat ini</th>
+                            <th class="py-2.5 px-3">Data di File Excel</th>
+                            <th class="py-2.5 px-3 w-40">Aksi yang Diambil</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importPreviewTableBody" class="divide-y divide-slate-100">
+                        <!-- Baris komparasi akan di-generate via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-between items-center shrink-0">
+                <p class="text-xs text-slate-500">
+                    <i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i> Data yang centangnya diabaikan tidak akan mengubah data web Anda.
+                </p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeImportPreviewModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition">
+                        Batal
+                    </button>
+                    <button type="button" onclick="executeImport()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-2">
+                        <i class="fa-solid fa-check"></i> Eksekusi Import Data
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- POPUP KONFIRMASI PENYELESAIAN TUGAS -->
+    <div id="completeModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-emerald-600 px-6 py-4 flex justify-between items-center text-white">
+                <h3 class="font-bold flex items-center gap-2 text-base">
+                    <i class="fa-solid fa-circle-check"></i> Konfirmasi Penyelesaian
+                </h3>
+                <button onclick="closeCompleteModal()" class="text-emerald-200 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="saveCompletionConfirm(event)" class="p-6 space-y-4">
+                <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-xs text-emerald-900">
+                    <span class="block text-[10px] uppercase font-bold text-emerald-600 mb-0.5">Aktivitas yang diselesaikan:</span>
+                    <p id="completeTaskTitleDisplay" class="font-semibold text-sm text-emerald-950"></p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                        Pilih Tanggal Selesai <span class="text-red-500">*</span>
+                    </label>
+                    <input type="date" id="confirmCompletedDate" required 
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm outline-none font-medium">
+                    <p class="text-[11px] text-slate-400 mt-1">Default tanggal adalah hari ini. Anda bisa menggantinya jika tugas selesai pada hari lalu.</p>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeCompleteModal()" 
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition">
+                        Batal
+                    </button>
+                    <button type="submit" 
+                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg shadow-md transition flex items-center gap-2">
+                        <i class="fa-solid fa-check"></i> Simpan Status Selesai
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- POPUP DETAIL AKTIVITAS -->
+    <div id="detailModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
+                <h3 class="font-bold flex items-center gap-2 text-base">
+                    <i class="fa-solid fa-circle-info"></i> Detail Aktivitas
+                </h3>
+                <button onclick="closeDetailModal()" class="text-indigo-200 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+                    <div>
+                        <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Tanggal Tugas</span>
+                        <span id="detailTaskDate" class="text-xs font-mono font-semibold text-slate-700"></span>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</span>
+                        <span id="detailTaskStatusBadge" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold mt-0.5"></span>
+                    </div>
+                </div>
+                <div>
+                    <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Aktivitas</span>
+                    <p id="detailTaskTitle" class="text-base font-bold text-slate-800 leading-snug"></p>
+                </div>
+                <div>
+                    <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Rincian / Detail</span>
+                    <div id="detailTaskDetail" class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 leading-relaxed whitespace-pre-line min-h-[70px]"></div>
+                </div>
+                <div class="border-t border-slate-100 pt-3">
+                    <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Tanggal Selesai</span>
+                    <span id="detailTaskCompletedDate" class="text-xs font-mono text-slate-700"></span>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button type="button" onclick="closeDetailModal()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POPUP EDIT AKTIVITAS -->
+    <div id="editModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
+                <h3 class="font-bold flex items-center gap-2 text-base">
+                    <i class="fa-solid fa-pen-to-square"></i> Edit Aktivitas
+                </h3>
+                <button onclick="closeEditModal()" class="text-indigo-200 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="editForm" onsubmit="saveEdit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="edit_reg_id_aktivitas">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Tanggal Tugas <span class="text-red-500">*</span></label>
+                    <input type="date" id="editTaskDate" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Aktivitas <span class="text-red-500">*</span></label>
+                    <input type="text" id="editTaskTitle" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Detail Aktivitas</label>
+                    <textarea id="editTaskDetail" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Status Pekerjaan <span class="text-red-500">*</span></label>
+                    <select id="editTaskStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white focus:ring-2 focus:ring-indigo-500">
+                        <option value="belum">Belum Selesai</option>
+                        <option value="selesai">Sudah Selesai</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Tanggal Selesai</label>
+                    <input type="date" id="editTaskCompletedDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-md transition flex items-center gap-2">
+                        <i class="fa-solid fa-check"></i> Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LOGIKA JAVASCRIPT LENGKAP -->
+    <script>
+        const todayObj = new Date();
+        const todayStr = todayObj.toISOString().split('T')[0];
+        document.getElementById('taskDate').value = todayStr;
+
+        function generateRegId() {
+            return 'ACT-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 9000);
+        }
+
+        // State Utama Data
+        let todos = JSON.parse(localStorage.getItem('todos_app_data_v11')) || [
+            {
+                reg_id_aktivitas: 'ACT-1700000000000-1001',
+                date: '2026-08-25',
+                title: 'Review draf kontrak supplier',
+                detail: 'Lakukan perbaikan pada poin pasal pembayaran garansi.',
+                completed: true,
+                completedDate: todayStr
+            },
+            {
+                reg_id_aktivitas: 'ACT-1700000000000-1002',
+                date: todayStr,
+                title: 'Rapat Koordinasi Tim Proyek',
+                detail: 'Bahas integrasi sistem filter dua tingkat.',
+                completed: false,
+                completedDate: todayStr
+            },
+            {
+                reg_id_aktivitas: 'ACT-1700000000000-1003',
+                date: todayStr,
+                title: 'Desain Pagar Warna Hitam',
+                detail: 'Proyek desain exterior pagar tinggi 2.5 meter.',
+                completed: true,
+                completedDate: todayStr
+            }
+        ];
+
+        let trashTodos = JSON.parse(localStorage.getItem('todos_trash_data_v11')) || [];
+
+        // State Filter & Temporary Import Data
+        let currentPeriod = 'month';
+        let currentStatus = 'all';
+        let selectedDay = todayStr;
+        let selectedMonth = todayStr.substring(0, 7);
+        let selectedYear = todayObj.getFullYear().toString();
+        let isOverdueOpen = true;
+        let pendingCompleteRegId = null;
+
+        // Holding Array untuk Pratinjau Import
+        let importPreviewItems = [];
+
+        function saveAndRender() {
+            localStorage.setItem('todos_app_data_v11', JSON.stringify(todos));
+            localStorage.setItem('todos_trash_data_v11', JSON.stringify(trashTodos));
+            render();
+        }
+
+        /* PERBAIKAN NOTIFICATION BAR BACKUP */
+        function updateNotificationBar(fileName) {
+            const bar = document.getElementById('backupNotificationBar');
+            const text = document.getElementById('backupStatusText');
+            const icon = document.getElementById('backupStatusIcon');
+            const currentFile = fileName || localStorage.getItem('last_backup_file');
+
+            if (currentFile) {
+                bar.className = "bg-emerald-600 text-white text-xs px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2 shadow-sm transition-colors duration-300";
+                icon.className = "fa-solid fa-circle-check text-emerald-200 text-sm";
+                text.innerHTML = `Pencadangan Terakhir: <strong class="font-mono bg-emerald-700/80 px-2 py-0.5 rounded text-emerald-100">${currentFile}</strong>`;
+            } else {
+                bar.className = "bg-amber-500 text-white text-xs px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2 shadow-sm transition-colors duration-300";
+                icon.className = "fa-solid fa-triangle-exclamation text-amber-100 text-sm";
+                text.innerHTML = `<strong>Perhatian:</strong> Data belum pernah dicadangkan! Silakan unduh backup data Anda.`;
+            }
+        }
+
+        /* FUNGSI EXPORT MULTI-SHEET KE EXCEL */
+        function exportToExcel() {
+            if (todos.length === 0 && trashTodos.length === 0) {
+                alert('Belum ada data tugas untuk diexport.');
+                return;
+            }
+
+            // Sheet 1: Aktivitas Aktif
+            const activeData = todos.map((item, index) => ({
+                "No": index + 1,
+                "ID Registrasi": item.reg_id_aktivitas,
+                "Tanggal Tugas": item.date,
+                "Aktivitas": item.title,
+                "Detail Aktivitas": item.detail || '-',
+                "Status": item.completed ? 'Sudah Selesai' : 'Belum Selesai',
+                "Tanggal Selesai": item.completed ? (item.completedDate || item.date) : '-'
+            }));
+
+            // Sheet 2: Histori Hapus (Trash)
+            const trashData = trashTodos.map((item, index) => ({
+                "No": index + 1,
+                "ID Registrasi": item.reg_id_aktivitas,
+                "Waktu Dihapus": item.deletedAt || '-',
+                "Status File": "HAPUS / TEMP_DELETE",
+                "Tanggal Tugas": item.date,
+                "Aktivitas": item.title,
+                "Detail Aktivitas": item.detail || '-'
+            }));
+
+            const wsActive = XLSX.utils.json_to_sheet(activeData);
+            const wsTrash = XLSX.utils.json_to_sheet(trashData);
+
+            wsActive['!cols'] = [
+                { wch: 5 }, { wch: 24 }, { wch: 15 }, { wch: 30 }, { wch: 40 }, { wch: 18 }, { wch: 15 }
+            ];
+            wsTrash['!cols'] = [
+                { wch: 5 }, { wch: 24 }, { wch: 22 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 40 }
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, wsActive, "Aktivitas Aktif");
+            XLSX.utils.book_append_sheet(workbook, wsTrash, "Histori Hapus");
+
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+
+            const fileName = `catatan_aktivitas_${yyyy}_${mm}_${dd}_${hh}_${min}_${ss}.xlsx`;
+
+            XLSX.writeFile(workbook, fileName);
+
+            localStorage.setItem('last_backup_file', fileName);
+            updateNotificationBar(fileName);
+        }
+
+        /* UPLOAD & PARSING FILE DENGAN DRY-RUN PREVIEW */
+        function triggerUploadWithBackup() {
+            if (confirm("Sebelum mengunggah data baru, sistem akan mengunduh file BACKUP data saat ini terlebih dahulu untuk keamanan.\n\nLanjutkan unduh backup dan pilih file?")) {
+                exportToExcel();
+                document.getElementById('importFileInput').click();
+            }
+        }
+
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    let importedActiveRows = [];
+                    let importedTrashRows = [];
+
+                    // 1. Ambil Sheet Aktivitas Aktif
+                    if (workbook.SheetNames.includes("Aktivitas Aktif")) {
+                        const wsActive = workbook.Sheets["Aktivitas Aktif"];
+                        importedActiveRows = XLSX.utils.sheet_to_json(wsActive);
+                    } else if (workbook.SheetNames.length > 0) {
+                        // Fallback ke sheet pertama
+                        importedActiveRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    }
+
+                    // 2. Ambil Sheet Histori Hapus jika ada
+                    if (workbook.SheetNames.includes("Histori Hapus")) {
+                        const wsTrash = workbook.Sheets["Histori Hapus"];
+                        importedTrashRows = XLSX.utils.sheet_to_json(wsTrash);
+                    }
+
+                    // 3. Proses Analisis Match & Conflict (Dry-Run)
+                    analyzeImportConflicts(importedActiveRows, importedTrashRows);
+
+                } catch (err) {
+                    alert('Format file Excel tidak valid atau rusak!');
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            e.target.value = ''; // Reset file input
+        }
+
+        /* ALUR RESOLUSI KONFLIK DATA IMPORT */
+        function analyzeImportConflicts(activeRows, trashRows) {
+            importPreviewItems = [];
+
+            // A. Proses Row dari Sheet Aktif
+            activeRows.forEach(row => {
+                const regId = row["ID Registrasi"] || generateRegId();
+                const excelItem = {
+                    reg_id_aktivitas: regId,
+                    date: row["Tanggal Tugas"] || todayStr,
+                    title: row["Aktivitas"] || 'Tanpa Judul',
+                    detail: row["Detail Aktivitas"] === '-' ? '' : (row["Detail Aktivitas"] || ''),
+                    completed: row["Status"] === 'Sudah Selesai',
+                    completedDate: row["Tanggal Selesai"] === '-' ? (row["Tanggal Tugas"] || todayStr) : (row["Tanggal Selesai"] || todayStr)
+                };
+
+                const existingInActive = todos.find(t => t.reg_id_aktivitas === regId);
+                const existingInTrash = trashTodos.find(t => t.reg_id_aktivitas === regId);
+
+                if (existingInTrash) {
+                    // Kategori 1: Data Pernah Dihapus di Web (Soft-Deleted)
+                    importPreviewItems.push({
+                        reg_id_aktivitas: regId,
+                        category: 'deleted',
+                        checked: false, // Default tidak dipulihkan kecuali dicentang user
+                        webData: existingInTrash,
+                        excelData: excelItem,
+                        actionLabel: 'Abaikan (Tetap Terhapus)'
+                    });
+                } else if (existingInActive) {
+                    // Kategori 2: Data Bentrok / Sudah ada di Web (Aktif)
+                    importPreviewItems.push({
+                        reg_id_aktivitas: regId,
+                        category: 'conflict',
+                        checked: true, // Default disetujui update
+                        webData: existingInActive,
+                        excelData: excelItem,
+                        actionLabel: 'Timpa Data Web dengan File Excel'
+                    });
+                } else {
+                    // Kategori 3: Data Baru
+                    importPreviewItems.push({
+                        reg_id_aktivitas: regId,
+                        category: 'new',
+                        checked: true, // Default disetujui insert
+                        webData: null,
+                        excelData: excelItem,
+                        actionLabel: 'Masukkan sebagai Data Baru'
+                    });
+                }
+            });
+
+            // B. Render Tampilan Preview ke Modal
+            renderImportPreviewModal();
+        }
+
+        function renderImportPreviewModal() {
+            const bodyEl = document.getElementById('importPreviewTableBody');
+            
+            let countNew = 0, countConflict = 0, countDeleted = 0;
+
+            bodyEl.innerHTML = importPreviewItems.map((item, idx) => {
+                let catBadge = '';
+                let webDisplay = '-';
+                let excelDisplay = `<strong>${escapeHtml(item.excelData.title)}</strong><br><span class="text-[10px] text-slate-400">Tgl: ${item.excelData.date} | Status: ${item.excelData.completed ? 'Selesai' : 'Belum'}</span>`;
+
+                if (item.category === 'new') {
+                    countNew++;
+                    catBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-[10px]">DATA BARU</span>';
+                    webDisplay = '<span class="text-slate-400 italic">Belum ada di Web</span>';
+                } else if (item.category === 'conflict') {
+                    countConflict++;
+                    catBadge = '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-[10px]">DATA BENTROK</span>';
+                    webDisplay = `<strong>${escapeHtml(item.webData.title)}</strong><br><span class="text-[10px] text-slate-400">Tgl: ${item.webData.date} | Status: ${item.webData.completed ? 'Selesai' : 'Belum'}</span>`;
+                } else if (item.category === 'deleted') {
+                    countDeleted++;
+                    catBadge = '<span class="px-2 py-0.5 bg-purple-100 text-purple-800 rounded font-bold text-[10px]">SOFT-DELETED</span>';
+                    webDisplay = `<strong class="line-through text-red-500">${escapeHtml(item.webData.title)}</strong><br><span class="text-[10px] text-red-400">Pernah dihapus pada web</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="py-2.5 px-3 text-center">
+                            <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleImportItem(${idx}, this.checked)" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                        </td>
+                        <td class="py-2.5 px-3 whitespace-nowrap">${catBadge}</td>
+                        <td class="py-2.5 px-3 font-mono text-[10px] text-slate-500 whitespace-nowrap">${item.reg_id_aktivitas}</td>
+                        <td class="py-2.5 px-3">${webDisplay}</td>
+                        <td class="py-2.5 px-3">${excelDisplay}</td>
+                        <td class="py-2.5 px-3 font-semibold text-slate-700">
+                            ${item.checked ? `<span class="text-indigo-600">${item.actionLabel}</span>` : '<span class="text-slate-400">Abaikan / Jangan Ubah</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('badgeCountNew').innerText = `${countNew} Data Baru`;
+            document.getElementById('badgeCountConflict').innerText = `${countConflict} Data Bentrok`;
+            document.getElementById('badgeCountDeleted').innerText = `${countDeleted} Data Terhapus`;
+
+            document.getElementById('importPreviewModal').classList.remove('hidden');
+        }
+
+        function toggleImportItem(index, isChecked) {
+            importPreviewItems[index].checked = isChecked;
+            if (importPreviewItems[index].category === 'deleted' && isChecked) {
+                importPreviewItems[index].actionLabel = 'Pulihkan (Restore) & Update Data';
+            } else if (importPreviewItems[index].category === 'deleted' && !isChecked) {
+                importPreviewItems[index].actionLabel = 'Abaikan (Tetap Terhapus)';
+            }
+            renderImportPreviewModal();
+        }
+
+        function toggleSelectAllImport(isChecked) {
+            importPreviewItems.forEach(item => {
+                item.checked = isChecked;
+                if (item.category === 'deleted') {
+                    item.actionLabel = isChecked ? 'Pulihkan (Restore) & Update Data' : 'Abaikan (Tetap Terhapus)';
+                }
+            });
+            renderImportPreviewModal();
+        }
+
+        function closeImportPreviewModal() {
+            document.getElementById('importPreviewModal').classList.add('hidden');
+            importPreviewItems = [];
+        }
+
+        /* EKSEKUSI PENYIMPANAN DATA IMPORT HASIL PILIHAN USER */
+        function executeImport() {
+            let processedCount = 0;
+
+            importPreviewItems.forEach(item => {
+                if (!item.checked) return; // Lewati jika tidak dicentang
+
+                if (item.category === 'new') {
+                    todos.unshift(item.excelData);
+                    processedCount++;
+                } else if (item.category === 'conflict') {
+                    const idx = todos.findIndex(t => t.reg_id_aktivitas === item.reg_id_aktivitas);
+                    if (idx !== -1) {
+                        todos[idx] = item.excelData;
+                        processedCount++;
+                    }
+                } else if (item.category === 'deleted') {
+                    // Pulihkan dari trash ke aktif
+                    trashTodos = trashTodos.filter(t => t.reg_id_aktivitas !== item.reg_id_aktivitas);
+                    todos.unshift(item.excelData);
+                    processedCount++;
+                }
+            });
+
+            closeImportPreviewModal();
+            saveAndRender();
+            alert(`Berhasil memproses ${processedCount} data tugas ke dalam aplikasi.`);
+        }
+
+        /* HAPUS DENGAN FORCE BACKUP DULU */
+        function deleteTodo(reg_id) {
+            const todoIndex = todos.findIndex(t => t.reg_id_aktivitas === reg_id);
+            if (todoIndex === -1) return;
+
+            const todoToDelete = todos[todoIndex];
+            if (confirm(`Aktivitas "${todoToDelete.title}" akan dihapus.\n\nSistem akan MENGUNDUH FILE BACKUP Excel terlebih dahulu sebelum menghapus data. Lanjutkan?`)) {
+                
+                const now = new Date();
+                const formattedTimestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+                trashTodos.unshift({
+                    ...todoToDelete,
+                    deletedAt: formattedTimestamp
+                });
+
+                todos.splice(todoIndex, 1);
+
+                exportToExcel();
+                saveAndRender();
+            }
+        }
+
+        function toggleTodo(reg_id) {
+            const todo = todos.find(t => t.reg_id_aktivitas === reg_id);
+            if (!todo) return;
+
+            if (!todo.completed) {
+                pendingCompleteRegId = reg_id;
+                document.getElementById('completeTaskTitleDisplay').innerText = todo.title;
+                document.getElementById('confirmCompletedDate').value = todayStr;
+                document.getElementById('confirmCompletedDate').min = todo.date;
+                document.getElementById('completeModal').classList.remove('hidden');
+            } else {
+                todos = todos.map(t => t.reg_id_aktivitas === reg_id ? { ...t, completed: false } : t);
+                saveAndRender();
+            }
+        }
+
+        function saveCompletionConfirm(e) {
+            e.preventDefault();
+            const selectedCompletedDate = document.getElementById('confirmCompletedDate').value;
+            if (!selectedCompletedDate || !pendingCompleteRegId) return;
+
+            todos = todos.map(t => {
+                if (t.reg_id_aktivitas === pendingCompleteRegId) {
+                    return {
+                        ...t,
+                        completed: true,
+                        completedDate: selectedCompletedDate
+                    };
+                }
+                return t;
+            });
+
+            pendingCompleteRegId = null;
+            closeCompleteModal();
+            saveAndRender();
+        }
+
+        function closeCompleteModal() {
+            pendingCompleteRegId = null;
+            document.getElementById('completeModal').classList.add('hidden');
+            render();
+        }
+
+        function setPeriodFilter(period) {
+            currentPeriod = period;
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'shadow-sm', 'text-slate-800');
+                btn.classList.add('text-slate-600');
+            });
+            const activeBtn = document.getElementById(`period-${period}`);
+            if(activeBtn) {
+                activeBtn.classList.add('bg-white', 'shadow-sm', 'text-slate-800');
+                activeBtn.classList.remove('text-slate-600');
+            }
+            updatePickerUI();
+            render();
+        }
+
+        function setStatusFilter(status) {
+            currentStatus = status;
+            document.querySelectorAll('.status-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'shadow-sm', 'text-slate-800');
+                btn.classList.add('text-slate-600');
+            });
+            const activeBtn = document.getElementById(`status-${status}`);
+            if(activeBtn) {
+                activeBtn.classList.add('bg-white', 'shadow-sm', 'text-slate-800');
+                activeBtn.classList.remove('text-slate-600');
+            }
+            render();
+        }
+
+        function updatePickerUI() {
+            const container = document.getElementById('custom-picker-container');
+            const wrapper = document.getElementById('picker-input-wrapper');
+            const label = document.getElementById('picker-label');
+
+            if (currentPeriod === 'all') {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+
+            if (currentPeriod === 'day') {
+                label.innerText = 'Pilih Hari:';
+                wrapper.innerHTML = `<input type="date" value="${selectedDay}" onchange="selectedDay = this.value; render();" class="bg-white px-2 py-1 border border-indigo-200 rounded-lg font-semibold text-slate-700 outline-none">`;
+            } else if (currentPeriod === 'week') {
+                label.innerText = 'Pilih Tanggal Acuan Minggu:';
+                wrapper.innerHTML = `<input type="date" value="${selectedDay}" onchange="selectedDay = this.value; render();" class="bg-white px-2 py-1 border border-indigo-200 rounded-lg font-semibold text-slate-700 outline-none">`;
+            } else if (currentPeriod === 'month') {
+                label.innerText = 'Pilih Bulan:';
+                wrapper.innerHTML = `<input type="month" value="${selectedMonth}" onchange="selectedMonth = this.value; render();" class="bg-white px-2 py-1 border border-indigo-200 rounded-lg font-semibold text-slate-700 outline-none">`;
+            } else if (currentPeriod === 'year') {
+                label.innerText = 'Pilih Tahun:';
+                wrapper.innerHTML = `<input type="number" min="2000" max="2099" value="${selectedYear}" onchange="selectedYear = this.value; render();" class="bg-white px-2 py-1 border border-indigo-200 rounded-lg font-semibold text-slate-700 outline-none w-24">`;
+            }
+        }
+
+        function toggleOverdue() {
+            isOverdueOpen = !isOverdueOpen;
+            const wrapper = document.getElementById('overdueTableWrapper');
+            const chevron = document.getElementById('overdueChevron');
+            if (isOverdueOpen) {
+                wrapper.classList.remove('hidden');
+                chevron.className = 'fa-solid fa-chevron-up';
+            } else {
+                wrapper.classList.add('hidden');
+                chevron.className = 'fa-solid fa-chevron-down';
+            }
+        }
+
+        function getPeriodRange() {
+            if (currentPeriod === 'all') return { start: '0000-00-00', end: '9999-99-99', label: '(Semua Periode)' };
+
+            if (currentPeriod === 'day') {
+                return { start: selectedDay, end: selectedDay, label: `(${selectedDay})` };
+            }
+
+            if (currentPeriod === 'week') {
+                const curr = new Date(selectedDay + 'T00:00:00');
+                const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1);
+                const last = first + 6;
+                const firstDay = new Date(curr.setDate(first)).toISOString().split('T')[0];
+                const lastDay = new Date(curr.setDate(last)).toISOString().split('T')[0];
+                return { start: firstDay, end: lastDay, label: `(${firstDay} s/d ${lastDay})` };
+            }
+
+            if (currentPeriod === 'month') {
+                const parts = selectedMonth.split('-');
+                const y = parseInt(parts[0]), m = parseInt(parts[1]);
+                const lastDate = new Date(y, m, 0).getDate();
+                return { start: `${selectedMonth}-01`, end: `${selectedMonth}-${String(lastDate).padStart(2, '0')}`, label: `(Bulan ${selectedMonth})` };
+            }
+
+            if (currentPeriod === 'year') {
+                return { start: `${selectedYear}-01-01`, end: `${selectedYear}-12-31`, label: `(Tahun ${selectedYear})` };
+            }
+        }
+
+        function render() {
+            const range = getPeriodRange();
+            document.getElementById('currentPeriodTitle').innerText = range.label;
+
+            // Overdue Tasks
+            const overdueTodos = todos.filter(t => !t.completed && t.date < range.start);
+            const overdueSection = document.getElementById('overdueSection');
+
+            if (overdueTodos.length > 0 && currentStatus !== 'completed' && currentStatus !== 'completed_period') {
+                overdueSection.classList.remove('hidden');
+                document.getElementById('overdueBadge').innerText = overdueTodos.length;
+                document.getElementById('overdueList').innerHTML = overdueTodos.map(t => renderRowHTML(t, true, range)).join('');
+            } else {
+                overdueSection.classList.add('hidden');
+            }
+
+            // Filter Tabel Utama
+            let periodTodos = [];
+
+            if (currentStatus === 'all') {
+                if (currentPeriod === 'all') {
+                    periodTodos = [...todos];
+                } else {
+                    periodTodos = todos.filter(t => {
+                        const isCreatedInPeriod = t.date >= range.start && t.date <= range.end;
+                        const isCompletedInPeriod = t.completed && t.completedDate >= range.start && t.completedDate <= range.end;
+                        return isCreatedInPeriod || isCompletedInPeriod;
+                    });
+                }
+            } else if (currentStatus === 'completed_period') {
+                periodTodos = todos.filter(t => t.completed && t.completedDate >= range.start && t.completedDate <= range.end);
+            } else if (currentStatus === 'started') {
+                periodTodos = todos.filter(t => t.date >= range.start && t.date <= range.end);
+            } else if (currentStatus === 'pending') {
+                periodTodos = todos.filter(t => !t.completed && t.date >= range.start && t.date <= range.end);
+            } else if (currentStatus === 'completed') {
+                periodTodos = todos.filter(t => t.completed && t.date >= range.start && t.date <= range.end);
+            }
+
+            // Hitung Metrik Progres
+            let countCurrentPeriodDone = 0;
+            let countPastPeriodDone = 0;
+            let countPendingCurrentPeriod = 0;
+
+            todos.forEach(t => {
+                const isCompletedInPeriod = t.completed && t.completedDate >= range.start && t.completedDate <= range.end;
+                const isCreatedInPeriod = t.date >= range.start && t.date <= range.end;
+
+                if (isCompletedInPeriod) {
+                    if (t.date < range.start) {
+                        countPastPeriodDone++;
+                    } else {
+                        countCurrentPeriodDone++;
+                    }
+                } else if (isCreatedInPeriod && !t.completed) {
+                    countPendingCurrentPeriod++;
+                }
+            });
+
+            const totalDoneInPeriod = countCurrentPeriodDone + countPastPeriodDone;
+
+            // Banner Metrik
+            const bannerEl = document.getElementById('periodSummaryBanner');
+            bannerEl.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-amber-400 text-base"></i>
+                    <div>
+                        <span class="font-bold text-white block">Ringkasan Progres ${range.label}</span>
+                        <span class="text-indigo-200 text-[11px]">Rincian transparansi pencapaian pekerjaan Anda</span>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                    <span class="bg-indigo-800/80 px-2.5 py-1 rounded-lg border border-indigo-700">
+                        Total Selesai: <strong class="text-emerald-400 font-bold">${totalDoneInPeriod}</strong>
+                    </span>
+                    <span class="bg-indigo-800/80 px-2.5 py-1 rounded-lg border border-indigo-700">
+                        Periode Ini: <strong class="text-emerald-300 font-bold">${countCurrentPeriodDone}</strong>
+                    </span>
+                    <span class="bg-indigo-800/80 px-2.5 py-1 rounded-lg border border-indigo-700">
+                        Periode Lalu: <strong class="text-purple-300 font-bold">${countPastPeriodDone}</strong>
+                    </span>
+                    <span class="bg-indigo-800/80 px-2.5 py-1 rounded-lg border border-indigo-700">
+                        Belum Selesai: <strong class="text-amber-300 font-bold">${countPendingCurrentPeriod}</strong>
+                    </span>
+                </div>
+            `;
+
+            // Statistik Header
+            document.getElementById('stat-total').innerText = todos.length;
+            document.getElementById('stat-pending').innerText = todos.filter(t => !t.completed).length;
+            document.getElementById('stat-completed').innerText = todos.filter(t => t.completed).length;
+
+            const listEl = document.getElementById('todoList');
+            const emptyEl = document.getElementById('emptyState');
+            const tableEl = document.getElementById('todoTable');
+
+            if (periodTodos.length === 0) {
+                emptyEl.classList.remove('hidden');
+                tableEl.classList.add('hidden');
+            } else {
+                emptyEl.classList.add('hidden');
+                tableEl.classList.remove('hidden');
+                listEl.innerHTML = periodTodos.map(t => renderRowHTML(t, false, range)).join('');
+            }
+        }
+
+        function renderRowHTML(todo, isOverdue, range) {
+            const isCompleted = todo.completed;
+            const dateValue = isCompleted ? (todo.completedDate || todo.date) : '';
+            
+            const isCreatedInPeriod = range && todo.date >= range.start && todo.date <= range.end;
+            const isCompletedInPeriod = range && isCompleted && todo.completedDate >= range.start && todo.completedDate <= range.end;
+            const isFromPastPeriod = isCompletedInPeriod && todo.date < range.start;
+
+            let badgeHtml = '';
+            if (isOverdue) {
+                badgeHtml = '<span class="block text-[9px] font-bold text-amber-600 uppercase">Menunggak</span>';
+            } else if (isFromPastPeriod) {
+                badgeHtml = '<span class="inline-block mt-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded border border-purple-200">Selesai (Periode Lalu)</span>';
+            } else if (isCompletedInPeriod && isCreatedInPeriod) {
+                badgeHtml = '<span class="inline-block mt-0.5 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded border border-emerald-200">Selesai (Periode Ini)</span>';
+            } else if (isCreatedInPeriod && !isCompleted) {
+                badgeHtml = '<span class="inline-block mt-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded border border-amber-200">Belum Selesai</span>';
+            }
+
+            return `
+                <tr class="hover:bg-slate-50/80 transition ${isCompleted ? 'task-completed bg-slate-50/40' : ''}">
+                    <td class="py-3 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
+                        <i class="fa-regular fa-calendar text-slate-400 mr-1"></i> ${todo.date}
+                    </td>
+
+                    <td class="py-3 px-4">
+                        <div class="task-title font-semibold text-slate-800">${escapeHtml(todo.title)}</div>
+                        <div class="flex items-center gap-2">
+                            ${badgeHtml}
+                            ${todo.detail ? `
+                                <button type="button" onclick="openDetailModal('${todo.reg_id_aktivitas}')" 
+                                    class="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 mt-0.5">
+                                    <i class="fa-solid fa-eye text-[10px]"></i> Selengkapnya...
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+
+                    <td class="py-3 px-4">
+                        <input type="date" value="${dateValue}" disabled
+                            class="text-xs border rounded px-2 py-1 w-full outline-none transition tanggal-disabled"
+                            title="Tanggal selesai dikunci. Gunakan icon Edit untuk mengubahnya.">
+                    </td>
+
+                    <td class="py-3 px-4 text-center">
+                        <input type="checkbox" ${isCompleted ? 'checked' : ''} 
+                            onclick="toggleTodo('${todo.reg_id_aktivitas}')"
+                            class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                    </td>
+
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="openEditModal('${todo.reg_id_aktivitas}')" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition" title="Edit">
+                                <i class="fa-regular fa-pen-to-square"></i>
+                            </button>
+                            <button onclick="deleteTodo('${todo.reg_id_aktivitas}')" class="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition" title="Hapus">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Form Handler
+        document.getElementById('todoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const date = document.getElementById('taskDate').value;
+            const title = document.getElementById('taskTitle').value.trim();
+            const detail = document.getElementById('taskDetail').value.trim();
+
+            if (!title || !date) return;
+
+            todos.unshift({
+                reg_id_aktivitas: generateRegId(),
+                date: date,
+                title: title,
+                detail: detail,
+                completed: false,
+                completedDate: date
+            });
+
+            saveAndRender();
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDetail').value = '';
+        });
+
+        function openDetailModal(reg_id) {
+            const todo = todos.find(t => t.reg_id_aktivitas === reg_id);
+            if (!todo) return;
+            document.getElementById('detailTaskDate').innerText = todo.date;
+            document.getElementById('detailTaskTitle').innerText = todo.title;
+            document.getElementById('detailTaskDetail').innerText = todo.detail || 'Tidak ada detail khusus.';
+            document.getElementById('detailTaskCompletedDate').innerText = todo.completed ? (todo.completedDate || todo.date) : 'Belum Selesai';
+
+            const badge = document.getElementById('detailTaskStatusBadge');
+            badge.innerText = todo.completed ? 'Selesai' : 'Belum Selesai';
+            badge.className = todo.completed 
+                ? 'inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700'
+                : 'inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700';
+
+            document.getElementById('detailModal').classList.remove('hidden');
+        }
+        function closeDetailModal() { document.getElementById('detailModal').classList.add('hidden'); }
+
+        function openEditModal(reg_id) {
+            const todo = todos.find(t => t.reg_id_aktivitas === reg_id);
+            if (!todo) return;
+            document.getElementById('edit_reg_id_aktivitas').value = todo.reg_id_aktivitas;
+            document.getElementById('editTaskDate').value = todo.date;
+            document.getElementById('editTaskTitle').value = todo.title;
+            document.getElementById('editTaskDetail').value = todo.detail || '';
+            document.getElementById('editTaskStatus').value = todo.completed ? 'selesai' : 'belum';
+            document.getElementById('editTaskCompletedDate').value = todo.completedDate || todo.date;
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+        function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); }
+
+        function saveEdit(e) {
+            e.preventDefault();
+            const reg_id = document.getElementById('edit_reg_id_aktivitas').value;
+            todos = todos.map(t => {
+                if (t.reg_id_aktivitas === reg_id) {
+                    return {
+                        ...t,
+                        date: document.getElementById('editTaskDate').value,
+                        title: document.getElementById('editTaskTitle').value.trim(),
+                        detail: document.getElementById('editTaskDetail').value.trim(),
+                        completed: document.getElementById('editTaskStatus').value === 'selesai',
+                        completedDate: document.getElementById('editTaskCompletedDate').value
+                    };
+                }
+                return t;
+            });
+            saveAndRender();
+            closeEditModal();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Inisialisasi awal
+        updateNotificationBar();
+        setPeriodFilter('month');
+        updatePickerUI();
+        render();
+    </script>
+</body>
+</html>
